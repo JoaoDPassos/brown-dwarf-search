@@ -1,47 +1,45 @@
 #!/usr/bin/env python3
 # Calls query method to filter data frame given certain data requirements
 
-def bandFilter(df, band, classStarMin = None, spreadMax = None, flag = False, maxMagError = None):
-    queryString = createQueryString(band, classStarMin, spreadMax, flag, maxMagError)
-    if queryString != '':
-        queryString += f' and WAVG_MAG_PSF_{band} > 0 and WAVG_MAG_PSF_{band} < 90'
-    else:
-        queryString += f'WAVG_MAG_PSF_{band} > 0 and WAVG_MAG_PSF_{band} < 90'
-    return df.query(queryString)
+def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags):
+    queries = []
 
-#Generates the string for .query method
-    
-def createQueryString(band, classStarMin, spreadMax, flag, maxMagError):
-    queryString = ''
-    if classStarMin != None:
-        if queryString != '': queryString += ' and '
-        queryString += f'CLASS_STAR_{band} > {classStarMin}'
-    if spreadMax != None:
-        if queryString != '': queryString += ' and '
-        queryString += f'SPREAD_MODEL_{band} < {spreadMax}'
+    if classStar != None:
+        queries.append(f'CLASS_STAR_{band} > {classStar}')
+    if spreadModel != None:
+        queries.append(f'SPREAD_MODEL_{band} < {spreadModel}')
     if flag:
-        if queryString != '': queryString += ' and '
-        queryString += f'FLAGS_{band} < 4'
-    if maxMagError != None:
-        if queryString != '': queryString += ' and '
-        queryString += f'WAVG_MAGERR_PSF_{band} < {maxMagError}'
-    return queryString
+        queries.append(f'FLAGS_{band} < 4')
+    if magError != None:
+        queries.append(f'WAVG_MAGERR_PSF_{band} < {magError}')
+    if invalidMags:
+        queries.extend([f'WAVG_MAG_PSF_{band} > 0', f'WAVG_MAG_PSF_{band} < 90'])
+    
+    query_string = ' and '.join(queries)
+    return query_string
+
 
 #Filters through multiple bands, makes sure objects satisfy filters for ALL bands (and)
 
-def multiBandFilterStrict(df, bandList, classStarMin = None, spreadMax = None, flag = False, maxMagError = None):
+def bandFilterStrict(bandList, classStar=None, spreadModel=None, magError=None, flag=False, invalidMags=False):
+    query_parts = []
+
     for band in bandList:
-        df = bandFilter(df, band, classStarMin, spreadMax, flag, maxMagError)
-    return df
+        user_params = createQueryString(band, classStar, spreadModel, magError, flag, invalidMags)
+        if user_params != '':
+            query_parts.append(f'{user_params}')
+
+    return ' and '.join(query_parts)
+
 
 #Filters through multiple bands, makes sure objects satisfy filters for AT LEAST 1 band (or)
 
-def multiBandFilterLenient(df, bandList, classStarMin = None, spreadMax = None, flag = False, maxMagError = None):
-    queryString = ''
-    strictFilters = ''
+def bandFilterLenient(bandList, classStar=None, spreadModel=None, magError=None, flag=False, invalidMags=False):
+    query_parts = []
+
     for band in bandList:
-        queryString += f'({createQueryString(band, classStarMin, spreadMax, flag, maxMagError)}) or '
-        strictFilters += f'WAVG_MAG_PSF_{band} > 0 and WAVG_MAG_PSF_{band} < 90 and ' #False values must always be filtered
-    queryString = queryString[:-3]
-    finalString = strictFilters + f'({queryString})' if queryString != '' else strictFilters
-    return df.query(finalString)
+        user_params = createQueryString(band, classStar, spreadModel, magError, flag, invalidMags)
+        if user_params != '':
+            query_parts.append(f'({user_params})')
+
+    return ' or '.join(query_parts)
