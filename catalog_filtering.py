@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # Calls query method to filter data frame given certain data requirements
-
 def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags):
     queries = []
 
@@ -43,3 +42,13 @@ def bandFilterLenient(bandList, classStar=None, spreadModel=None, magError=None,
             query_parts.append(f'({user_params})')
 
     return ' or '.join(query_parts)
+
+#checks if the dataframe contains our known PM star, also can add more as an argument
+
+def contains_PM(df, PM_set = {10370986892068913152, 10370986891217469440, 10370986798997307392, 10370986798804369408}):
+    for i, row in df.iterrows():
+        if i in PM_set:
+            PM_set.remove(i)
+        if PM_set == set():
+            return True
+    return False
