@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # Calls query method to filter data frame given certain data requirements
+import numpy as np
+
 def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags):
     queries = []
 
@@ -45,10 +47,14 @@ def bandFilterLenient(bandList, classStar=None, spreadModel=None, magError=None,
 
 #checks if the dataframe contains our known PM star, also can add more as an argument
 
-def contains_PM(df, PM_set = {10370986892068913152, 10370986891217469440, 10370986798997307392, 10370986798804369408}):
-    for i, row in df.iterrows():
-        if i in PM_set:
-            PM_set.remove(i)
-        if PM_set == set():
-            return True
-    return False
+def contains_PM(df, PM_set=[10370986892068913152, 10370986891217469440, 10370986798997307392, 10370986798804369408]):
+    index_array = np.array(df.index, dtype=object)
+    for _hipscat_index in PM_set:
+        if not np.any(index_array == _hipscat_index):
+            return False
+    return True
+
+# assert contains_PM([10370986892068913152, 10370986891217469440, 10370986798997307392, 10370986798804369408, 0, 1, 22, 86]) == True
+# assert contains_PM([10370986892068913152, 10370986798997307392, 10370986798804369408, 80, 390902390482039, 0, -2]) == False
+# assert contains_PM([0,1,2,3,5]) == False
+# assert contains_PM([]) == False
