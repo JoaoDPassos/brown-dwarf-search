@@ -20,6 +20,22 @@ def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags)
     query_string = ' and '.join(queries)
     return query_string
 
+def createFilterTuples(band, classStar, spreadModel, magError, flag, invalidMags):
+    queries = []
+
+    if classStar != None:
+        queries.append((f'CLASS_STAR_{band}','>',classStar))
+    if spreadModel != None:
+        queries.append((f'SPREAD_MODEL_{band}','<', spreadModel))
+    if flag:
+        queries.append((f'FLAGS_{band}','<', 4))
+    if magError != None:
+        queries.append((f'WAVG_MAGERR_PSF_{band}', '<', magError))
+    if invalidMags:
+        queries.extend([(f'WAVG_MAG_PSF_{band}','>', 0), (f'WAVG_MAG_PSF_{band}', '<', 90)])
+
+    return queries
+
 
 #Filters through multiple bands, makes sure objects satisfy filters for ALL bands (and)
 
@@ -62,3 +78,12 @@ def contains_PM(df, PM_set=[10370986892068913152, 10370986891217469440, 10370986
 # assert contains_PM([10370986892068913152, 10370986798997307392, 10370986798804369408, 80, 390902390482039, 0, -2]) == True
 # assert contains_PM([0,1,2,3,5]) == False
 # assert contains_PM([]) == False
+
+def create_filter_list(bandList, classStar=None, spreadModel=None, magError=None, flag=False, invalidMags=False):
+    final_filters = []
+
+    for band in bandList:
+        user_params = createFilterTuples(band, classStar, spreadModel, magError, flag, invalidMags)
+        final_filters.append(user_params)
+
+    return final_filters
