@@ -44,3 +44,22 @@ describe what they are depicting.
 The [algo_gaia_verified.csv](https://github.com/JoaoDPassos/astrophysics/blob/main/algo_gaia_verified.csv) is the same data found from the DES-Gaia cross match in 
 des_gaia_xmatch.ipynb, but I added additional columns for Gaia found magnitudes for these stars. I inserted these columns manually because I did not have access to these columns
 in my download of Gaia.
+
+# How to run these notebooks yourself:
+
+Prior to installing, make sure you are operating on a Mac or Linux system as some of the python libraries have incompatibility issues with windows. Ensure you have all of
+the files installed in a folder, and make sure your system has python 3.11.7. Then, open your terminal and change your directory to the folder where all of your files are located. You can do this by running 
+
+```cd path_to_your_folder```
+
+in your terminal. Following this, create your virtual enviornment to ensure you do not do anything that may harm your system. Your can do this by running the following code:
+
+```python3 -m venv venv_name```
+
+```source venv_name/bin/activate```
+
+Now that we have our virtual enviornment, we can install the necessary python libraries to run this code. We can do this using pip, running the following code in your terminal:
+
+```pip install lsdb dask numpy pandas```
+
+Once we have installed these libraries, I encourage you to use Visual Code Studio as your IDE, as within VSCode you can choose your kernel to be your newly established virtual enviornment and easily access all of the Jupyter Notebooks. 
