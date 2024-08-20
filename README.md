@@ -62,4 +62,14 @@ Now that we have our virtual enviornment, we can install the necessary python li
 
 ```pip install lsdb dask numpy pandas```
 
-Once we have installed these libraries, I encourage you to use Visual Code Studio as your IDE, as within VSCode you can choose your kernel to be your newly established virtual enviornment and easily access all of the Jupyter Notebooks. 
+Once we have installed these libraries, I encourage you to use Visual Code Studio as your IDE, as within VSCode you can choose your kernel to be your newly established virtual enviornment and easily access all of the Jupyter Notebooks.
+
+## How to download catalogs:
+
+Please refer to https://data.lsdb.io/ on how to install your own catalogs, as this site has the code neccessary to install as well as the two catalogs used in these
+Jupyter Notebooks. I encourage you to fitler out uneccessary columns prior to installing to save storage on your local system, you can see how that is done in the Notebooks
+ above. 
+
+# Acknowledgements
+
+I would like to thank Professor Mandelbaum and Dr. Malanchev for their mentorship and guidance throughout my apprenticeship, this opportunity was very formative and enjoyable and it would not have been possible without them. I would also like to thank my peer Zoey Young for her help in our research of understanding brown dwarfs.
