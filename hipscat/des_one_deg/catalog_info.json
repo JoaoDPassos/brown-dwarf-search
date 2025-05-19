@@ -1,8 +1,0 @@
-{
-    "catalog_name": "des_dr2",
-    "catalog_type": "object",
-    "total_rows": 420911,
-    "epoch": "J2000",
-    "ra_column": "RA",
-    "dec_column": "DEC"
-}
