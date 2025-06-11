@@ -73,8 +73,10 @@ def kth_star_min_distance(group, k):
             
             distances.append(distance_to_line(proj_vector, delta_coords[j]))
 
-        
-        kth_distances[i] = sorted(distances)[k]
+        if (k >= len(distances)): 
+            kth_distances[i] = np.nan
+        else:
+            kth_distances[i] = sorted(distances)[k]
 
     group['kth_min_proj_error'] = kth_distances
 
