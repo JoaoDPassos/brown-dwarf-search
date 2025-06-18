@@ -1,9 +1,9 @@
-import lsdb
 import pandas as pd
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from itertools import combinations
+
 
 class Star:
     def __init__(self, ra, dec, mags):
@@ -108,21 +108,35 @@ def find_max_obj_distance(neighbors):
         if distance > max_distance:
             max_distance = distance
 
-    max_distance_arcsec = max_distance.arcsecond  
+    max_distance_arcsec = max_distance.arcsecond 
     return max_distance_arcsec
     
-def find_max_mag_diff(neighbors, passbands):
+def find_max_mag_diff(neighbors, mag_cols):
+    
     ''' Takes a list of neighbors in alignment and calculates the maximum difference between magnitudes across passbands.
     We compare magnitudes between stars in the same passband.
 
     Args:
         - neighbors: list of Star class objects. 
-        - passbands: array of strings decribing the passbands (i.e. ['g','r'])
+        - passbands: array of strings decribing the passbands (i.e. ['G','R'])
 
     Returns: maximum mag difference as np.float64(?)
     '''
     
-    return np.nan
+    mag_dfs = [neighbor.mags for neighbor in neighbors]
+    max_diff = np.nan
+
+    for mag_col in mag_cols:
+        mags = [df[mag_col].item() for df in mag_dfs]
+
+        for mag_1, mag_2 in combinations(mags, 2):
+            if (mag_1 == -99.0) or (mag_2 == -99.0): continue 
+                
+            curr_diff = abs(mag_1 - mag_2)
+            if ((curr_diff > max_diff) or (np.isnan(max_diff))):
+                max_diff = curr_diff
+    
+    return max_diff
 
 def get_aligned_neighbors(sorted_neighbors, k):
     
@@ -183,19 +197,31 @@ def get_proj_coords(origin, neighbors):
 
     return res
 
+def get_origin_mags(group_mag_cols):
+    return group_mag_cols.iloc[[0]]
+
+def get_neighbor_mags(group_mag_cols, i):
+    return group_mag_cols.iloc[[i]]
+
 def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
     
     mag_cols_1 = [f'{col}_1' for col in mag_cols]
-    origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], group[mag_cols_1].iloc[0])
+    origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], get_origin_mags(group[mag_cols_1]))
     mag_cols_2 = [f'{col}_2' for col in mag_cols]
-    neighbors = [Star(row['RA_2'], row['DEC_2'], row[mag_cols_2]) for _,row in group.iterrows()]
+    neighbors = [Star(row['RA_2'], row['DEC_2'], get_neighbor_mags(group[mag_cols_2], idx)) for idx, (_,row) in enumerate(group.iterrows())]
+    # print(f"origin_star={origin_star}")
+    
+    # for i in range(len(neighbors)):
+    #     print(f"neighbors[{i}]={neighbors[i]}")
 
     proj_coords = get_proj_coords(origin_star, neighbors)
-    print(f"Showing proj_coords={proj_coords}")
+    # print(f"Showing proj_coords={proj_coords}")
 
     kth_distances = [None] * len(proj_coords)
     max_distances = [None] * len(proj_coords)
     max_mag_diffs = [None] * len(proj_coords)
+
+    all_aligned_neighbors = []
 
     for i in range(len(neighbors)):
         proj_vector = proj_coords[i]
@@ -205,10 +231,11 @@ def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
 
         for j in range(len(neighbors)):
             if np.all(proj_coords[j] == 0) or (j == i): continue
-            print(f"proj_vector = {proj_vector}, proj_coords[{j}] = {proj_coords[j]}, distance_to_line(proj_vector, proj_coords[{j}]), {distance_to_line(proj_vector, proj_coords[j])}")
+            # print(f"proj_vector = {proj_vector}, proj_coords[{j}] = {proj_coords[j]}, distance_to_line(proj_vector, proj_coords[{j}]), {distance_to_line(proj_vector, proj_coords[j])}")
             neighbors[j].deviation = distance_to_line(proj_vector, proj_coords[j])
 
         sorted_neighbors = sorted(neighbors)
+        # print("sorted_neighbors=", sorted_neighbors)
         
         # If the k value is larger than the number of neighbors or the deviation is too great, 
         # skip postfiltering and declare the projection invalid.
@@ -220,14 +247,16 @@ def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
             continue
         
         # We have k + 2 objects in alignment, let's save maximum distance between objs and max mag diff!
-        for i in range(len(sorted_neighbors)):
-            print(f"{i}th sorted_neighbors value = {sorted_neighbors[i].deviation}")
+        # for i in range(len(sorted_neighbors)):
+            # print(f"{i}th sorted_neighbors value = {sorted_neighbors[i].deviation}")
 
-        print('done')
+        # print('done')
+        # print(f"kth_distances[{i}] = {sorted_neighbors[k].deviation}")
         kth_distances[i] = sorted_neighbors[k].deviation
-        aligned_neighbors = get_aligned_neighbors(neighbors, k)
+        aligned_neighbors = get_aligned_neighbors(sorted_neighbors, k)
+        # print(f"max_distances[{i}] = {find_max_obj_distance(aligned_neighbors)}")
         max_distances[i] = find_max_obj_distance(aligned_neighbors)
-        max_mag_diffs[i] = find_max_mag_diff(aligned_neighbors, mag_cols_1)
+        max_mag_diffs[i] = find_max_mag_diff(aligned_neighbors, mag_cols_2)
 
         reset_deviations(neighbors)
 
@@ -237,7 +266,7 @@ def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
     group['max_obj_distance'] = max_distances
     group['max_mag_diff'] = max_mag_diffs
 
-    return group[cols_to_keep + ['kth_min_proj_error'] + ['max_obj_distance']]
+    return group[cols_to_keep + ['kth_min_proj_error'] + ['max_obj_distance'] + ['max_mag_diff']]
 
 def apply_kth_star(df, k, id_col):
 
