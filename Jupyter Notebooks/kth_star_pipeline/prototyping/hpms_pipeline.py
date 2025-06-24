@@ -3,38 +3,16 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from itertools import combinations
+from dataclasses import dataclass
 
 
+@dataclass (eq=True)
 class Star:
     def __init__(self, ra, dec, mags):
         self.ra = ra
         self.dec = dec
         self.mags = mags
-        self.deviation = np.nan
-        self.proj_ra = np.nan
-        self.proj_dec = np.nan
-    
-    def __lt__(self, other):
-        # If self is NaN and other is not, self is greater (goes later)
-        if np.isnan(self.deviation) and not np.isnan(other.deviation):
-            return False
-        # If other is NaN and self is not, self is less (goes earlier)
-        if not np.isnan(self.deviation) and np.isnan(other.deviation):
-            return True
-        # If both are NaN, treat as equal (but keep original order)
-        if np.isnan(self.deviation) and np.isnan(other.deviation):
-            return False
-        # Normal comparison
-        return self.deviation < other.deviation
-
-    def __eq__(self, other):
-        return ((self.ra == other.ra) and 
-                (self.dec == other.dec) and
-                (self.mags == other.dec) and
-                (self.deviation == other.dec) and
-                (self.proj_ra == other.dec) and
-                (self.proj_dec == other.dec))
-
+        self.deviation = np.inf
 
     def __repr__(self):
         return f'RA: {self.ra}, DEC: {self.dec}, mags: {self.mags}, deviation: {self.deviation}'
@@ -161,7 +139,7 @@ def get_aligned_neighbors(sorted_neighbors, k):
 
 def reset_deviations(neighbors):
 
-    ''' Takes in a list of star class objects and sets every neighbor's deviation value to nan.
+    ''' Takes in a list of star class objects and sets every neighbor's deviation value to infinity.
 
     Args:
         - neighbors: Array of star class objects.
@@ -170,14 +148,14 @@ def reset_deviations(neighbors):
     '''
     
     for neighbor in neighbors: 
-        neighbor.deviation = np.nan
-    return None
+        neighbor.deviation = np.inf
+    return 
 
 def get_proj_coords(origin, neighbors):
     
     ''' Creates an array of 2D coordinates of the stars in neighbors, using the coordinates from origin as the origin
-    of the system. Also stores these coordinates under .proj_ra and .proj_dec for each star in neighbors. We assume that
-    the origin is one of the stars in neighbors so that the array lengths are in agreement in kth_star_min_distance.
+    of the system. We assume that the origin is one of the stars in neighbors so that the array lengths are in agreement in
+    kth_star_min_distance.
 
     Args:
         - origin: Star class object, who's coordinates serve as the origin of our coordinate system.
@@ -190,38 +168,32 @@ def get_proj_coords(origin, neighbors):
     x_vals = (neighbor_ra - origin.ra) * np.cos(np.radians(origin.dec)) * 3600
     y_vals = (neighbor_dec - origin.dec) * 3600
 
-    res = np.vstack((x_vals, y_vals)).T 
-    
-    for i in range(len(res)):
-        neighbors[i].proj_ra, neighbors[i].proj_dec = res[i][0], res[i][1]
+    return np.vstack((x_vals, y_vals)).T 
 
-    return res
 
-def get_origin_mags(group_mag_cols):
-    return group_mag_cols.iloc[[0]]
+def get_mags(group_mag_cols, i):
+    ''' Gets a dataframe with one row, which includes the magnitudes of the ith star in the group.
 
-def get_neighbor_mags(group_mag_cols, i):
+    Args:
+        - group_mag_cols: group with only the magnitude columns.
+        - i: > 0 and < len(group_mag_cols), ith star.
+
+    Returns: dataframe with only the ith row.
+    '''
     return group_mag_cols.iloc[[i]]
 
-def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
+def kth_star_min_distance(group, k, mag_cols, max_obj_deviation):
     
     mag_cols_1 = [f'{col}_1' for col in mag_cols]
-    origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], get_origin_mags(group[mag_cols_1]))
+    origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], get_mags(group[*mag_cols_1], 0))
     mag_cols_2 = [f'{col}_2' for col in mag_cols]
-    neighbors = [Star(row['RA_2'], row['DEC_2'], get_neighbor_mags(group[mag_cols_2], idx)) for idx, (_,row) in enumerate(group.iterrows())]
-    # print(f"origin_star={origin_star}")
-    
-    # for i in range(len(neighbors)):
-    #     print(f"neighbors[{i}]={neighbors[i]}")
+    neighbors = [Star(row['RA_2'], row['DEC_2'], get_mags(group[mag_cols_2], idx)) for idx, (_,row) in enumerate(group.iterrows())]
 
     proj_coords = get_proj_coords(origin_star, neighbors)
-    # print(f"Showing proj_coords={proj_coords}")
 
     kth_distances = [None] * len(proj_coords)
     max_distances = [None] * len(proj_coords)
     max_mag_diffs = [None] * len(proj_coords)
-
-    all_aligned_neighbors = []
 
     for i in range(len(neighbors)):
         proj_vector = proj_coords[i]
@@ -231,44 +203,35 @@ def kth_star_min_distance(group, k, cols_to_keep, mag_cols, max_obj_deviation):
 
         for j in range(len(neighbors)):
             if np.all(proj_coords[j] == 0) or (j == i): continue
-            # print(f"proj_vector = {proj_vector}, proj_coords[{j}] = {proj_coords[j]}, distance_to_line(proj_vector, proj_coords[{j}]), {distance_to_line(proj_vector, proj_coords[j])}")
             neighbors[j].deviation = distance_to_line(proj_vector, proj_coords[j])
 
-        sorted_neighbors = sorted(neighbors)
-        # print("sorted_neighbors=", sorted_neighbors)
+        sorted_neighbors = sorted(neighbors, key=lambda item: item.deviation)
         
         # If the k value is larger than the number of neighbors or the deviation is too great, 
         # skip postfiltering and declare the projection invalid.
         if ((k > len(neighbors) - 2) or (sorted_neighbors[k].deviation > max_obj_deviation)): 
-            kth_distances[i] = np.nan
-            max_distances[i] = np.nan
-            max_mag_diffs[i] = np.nan
+            kth_distances[i] = np.inf
+            max_distances[i] = np.inf
+            max_mag_diffs[i] = np.inf
             reset_deviations(neighbors)
             continue
         
         # We have k + 2 objects in alignment, let's save maximum distance between objs and max mag diff!
-        # for i in range(len(sorted_neighbors)):
-            # print(f"{i}th sorted_neighbors value = {sorted_neighbors[i].deviation}")
-
-        # print('done')
-        # print(f"kth_distances[{i}] = {sorted_neighbors[k].deviation}")
         kth_distances[i] = sorted_neighbors[k].deviation
         aligned_neighbors = get_aligned_neighbors(sorted_neighbors, k)
-        # print(f"max_distances[{i}] = {find_max_obj_distance(aligned_neighbors)}")
         max_distances[i] = find_max_obj_distance(aligned_neighbors)
         max_mag_diffs[i] = find_max_mag_diff(aligned_neighbors, mag_cols_2)
 
-        reset_deviations(neighbors)
-
         # Reset deviation value for next projection
+        reset_deviations(neighbors)
     
-    group['kth_min_proj_error'] = kth_distances
+    group['kth_min_deviation'] = kth_distances
     group['max_obj_distance'] = max_distances
     group['max_mag_diff'] = max_mag_diffs
 
-    return group[cols_to_keep + ['kth_min_proj_error'] + ['max_obj_distance'] + ['max_mag_diff']]
+    return group[['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']]
 
-def apply_kth_star(df, k, id_col):
+def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation):
 
     '''map_partitions() compatible function which runs the kth star algorithm on a catalog already crossmatched
     and filtered for groups.
@@ -277,27 +240,34 @@ def apply_kth_star(df, k, id_col):
         - df: passed by map_partitions(), dataframe which is modified by function
         - k: number of stars which we seek to be in aligment
     
-    Returns: Catalog with "kth_min_proj_error" column, which is the kth smallest deviation of a star with alignment
+    Returns: Catalog with "kth_min_deviation" column, which is the kth smallest deviation of a star with alignment
     with other stars.
     '''
     
     if df.empty:
-        df['kth_min_proj_error'] = pd.Series(dtype=float)
+        df['kth_min_deviation'] = pd.Series(dtype=float)
+        df['max_obj_distance'] = pd.Series(dtype=float)
+        df['max_mag_diff'] = pd.Series(dtype=float)
     else:
         df.reset_index(inplace=True)
-        df['kth_min_proj_error'] = (
+        hpms_cols = (
             df.groupby(id_col)
-              .apply(kth_star_min_distance, k=k-1)
+              .apply(kth_star_min_distance, k=k-1, mag_cols=mag_cols, max_obj_deviation=max_obj_deviation)
               .reset_index(drop=True, level=0)
         )
-        df.set_index('_healpix_29')
+        df.join(hpms_cols, on=id_col)
 
-    cols_to_keep = [col for col in df.columns if col.endswith('_2')] + ['kth_min_proj_error']
+    df.set_index(id_col)
+    hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
+
+    cols_to_keep = [col for col in df.columns if col.endswith('_2')] + hpms_col_names
+    print(cols_to_keep, 'next', df.columns)
+    for col in hpms_col_names: assert(col in df.columns)
     return df[cols_to_keep]
 
 def execute_pipeline(catalog, query_string,
                      xmatch_max_neighbors, max_neighbor_dist, min_neighbors,
-                     k, max_obj_deviation, id_col):
+                     k, max_obj_deviation, id_col, mag_cols):
 
     '''Executes the high PM star data pipeline.
 
@@ -328,8 +298,8 @@ def execute_pipeline(catalog, query_string,
     )
     neighbors_filtered = xmatch.map_partitions(n_neighbors_filter, min_neighbors, id_col)
     
-    # Add column for kth minimum distance
-    kth_star = neighbors_filtered.map_partitions(apply_kth_star, k, id_col)
-    kth_star_filtered = kth_star.query(f'kth_min_proj_error < {max_obj_deviation}')
+    # Add column for kth minimum distance and postfiltering parameters
+    kth_star = neighbors_filtered.map_partitions(apply_kth_star, k, id_col, mag_cols, max_obj_deviation)
+    kth_star_filtered = kth_star.query(f'kth_min_deviation < {max_obj_deviation}')
     
     return kth_star_filtered

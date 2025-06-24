@@ -3,7 +3,7 @@
 import numpy as np
 from dask import delayed, compute
 
-def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags):
+def createQueryString(band, classStar, spreadModel, magError, flag, mag):
     queries = []
 
     if classStar != None:
@@ -14,13 +14,13 @@ def createQueryString(band, classStar, spreadModel, magError, flag, invalidMags)
         queries.append(f'FLAGS_{band} < 4')
     if magError != None:
         queries.append(f'WAVG_MAGERR_PSF_{band} < {magError}')
-    if invalidMags:
-        queries.extend([f'WAVG_MAG_PSF_{band} > 0', f'WAVG_MAG_PSF_{band} < 90'])
+    if mag != None:
+        queries.append(f'(WAVG_MAG_PSF_{band} > {mag} or WAVG_MAG_PSF_{band} < 0)')
     
     query_string = ' and '.join(queries)
     return query_string
 
-def createFilterTuples(band, classStar, spreadModel, magError, flag, invalidMags):
+def createFilterTuples(band, classStar, spreadModel, magError, flag, mag):
     queries = []
 
     if classStar != None:
@@ -31,8 +31,8 @@ def createFilterTuples(band, classStar, spreadModel, magError, flag, invalidMags
         queries.append((f'FLAGS_{band}','<', 4))
     if magError != None:
         queries.append((f'WAVG_MAGERR_PSF_{band}', '<', magError))
-    if invalidMags:
-        queries.extend([(f'WAVG_MAG_PSF_{band}','>', 0), (f'WAVG_MAG_PSF_{band}', '<', 90)])
+    if mag != None:
+        queries.extend([(f'WAVG_MAG_PSF_{band}','>', mag), (f'WAVG_MAG_PSF_{band}', '<', 90)])
 
     return queries
 
@@ -52,11 +52,11 @@ def bandFilterStrict(bandList, classStar=None, spreadModel=None, magError=None, 
 
 #Filters through multiple bands, makes sure objects satisfy filters for AT LEAST 1 band (or)
 
-def bandFilterLenient(bandList, classStar=None, spreadModel=None, magError=None, flag=False, invalidMags=False):
+def bandFilterLenient(bandList, classStar=None, spreadModel=None, magError=None, flag=False, mag=None):
     query_parts = []
 
     for band in bandList:
-        user_params = createQueryString(band, classStar, spreadModel, magError, flag, invalidMags)
+        user_params = createQueryString(band, classStar, spreadModel, magError, flag, mag)
         if user_params != '':
             query_parts.append(f'{user_params}')
 
