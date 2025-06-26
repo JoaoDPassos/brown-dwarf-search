@@ -4,6 +4,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 from itertools import combinations
 from dataclasses import dataclass
+from IPython.display import display
 
 
 @dataclass (eq=True)
@@ -182,7 +183,7 @@ def get_mags(group_mag_cols, i):
     '''
     return group_mag_cols.iloc[[i]]
 
-def kth_star_min_distance(group, k, mag_cols, max_obj_deviation):
+def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_mode=False):
     
     mag_cols_1 = [f'{col}_1' for col in mag_cols]
     origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], get_mags(group[*mag_cols_1], 0))
@@ -194,6 +195,7 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation):
     kth_distances = [None] * len(proj_coords)
     max_distances = [None] * len(proj_coords)
     max_mag_diffs = [None] * len(proj_coords)
+    debug_col = [None] * len(proj_coords)
 
     for i in range(len(neighbors)):
         proj_vector = proj_coords[i]
@@ -219,6 +221,7 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation):
         # We have k + 2 objects in alignment, let's save maximum distance between objs and max mag diff!
         kth_distances[i] = sorted_neighbors[k].deviation
         aligned_neighbors = get_aligned_neighbors(sorted_neighbors, k)
+        debug_col[i] = aligned_neighbors
         max_distances[i] = find_max_obj_distance(aligned_neighbors)
         max_mag_diffs[i] = find_max_mag_diff(aligned_neighbors, mag_cols_2)
 
@@ -228,10 +231,29 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation):
     group['kth_min_deviation'] = kth_distances
     group['max_obj_distance'] = max_distances
     group['max_mag_diff'] = max_mag_diffs
+    group['aligned_neighbors'] = debug_col
 
-    return group[['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']]
+    return_cols = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
+    if debug_mode: return_cols.append('aligned_neighbors')
+         
+    return group[return_cols]
 
-def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation):
+def reduce_to_lowest_deviation(group):
+    
+    '''.apply() compatible function which takes a group with the same healpix index (and id_col_1) and returns the 
+    group with only one row: the one with the lowest kth_min_deviation.
+
+    Args:
+        - group: Group to be reduced into one row.
+
+    Returns: Single row from group with lowest kth_min_deviation.
+    '''
+    min_idx = np.argmin(group['kth_min_deviation'].to_numpy()[:1]) #Skip 0 index because is always NaN
+    min_idx += 1
+    res = group.iloc[[min_idx]]
+    return group.iloc[[min_idx]]
+
+def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False):
 
     '''map_partitions() compatible function which runs the kth star algorithm on a catalog already crossmatched
     and filtered for groups.
@@ -243,31 +265,45 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation):
     Returns: Catalog with "kth_min_deviation" column, which is the kth smallest deviation of a star with alignment
     with other stars.
     '''
-    
+    original_index = df.index
+    df.reset_index(inplace=True, drop=True)
+    # print("ALL COLUMNS:",list(df.columns))
     if df.empty:
         df['kth_min_deviation'] = pd.Series(dtype=float)
         df['max_obj_distance'] = pd.Series(dtype=float)
         df['max_mag_diff'] = pd.Series(dtype=float)
     else:
-        df.reset_index(inplace=True)
         hpms_cols = (
             df.groupby(id_col)
-              .apply(kth_star_min_distance, k=k-1, mag_cols=mag_cols, max_obj_deviation=max_obj_deviation)
+              .apply(kth_star_min_distance, k=k-1, mag_cols=mag_cols, 
+                     max_obj_deviation=max_obj_deviation, id_col=id_col, debug_mode=debug_mode)
               .reset_index(drop=True, level=0)
         )
-        df.join(hpms_cols, on=id_col)
+        df = df.join(hpms_cols)
+        # assert len(set(df.index)) == len(df), f"{df.index = }"
 
-    df.set_index(id_col)
+    
     hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
+    
+    df.index = original_index
+    # assert len(set(df.index)) == len(df), f"{df.index = }"
 
-    cols_to_keep = [col for col in df.columns if col.endswith('_2')] + hpms_col_names
-    print(cols_to_keep, 'next', df.columns)
-    for col in hpms_col_names: assert(col in df.columns)
+    # # print("ORIGINAL DF:")
+    # # display(df)
+    df = df.groupby(original_index).apply(reduce_to_lowest_deviation)
+    # # print("DF AFTER REDUCE:")
+    # display(df_test)
+    # # print("DF AFTER RESET_IDX:")
+    df = df.reset_index(level=0, drop=True)
+    # # display(df_test)
+    
+
+    cols_to_keep = [id_col] + [col for col in df.columns if col.endswith('_2')] + hpms_col_names
     return df[cols_to_keep]
 
 def execute_pipeline(catalog, query_string,
                      xmatch_max_neighbors, max_neighbor_dist, min_neighbors,
-                     k, max_obj_deviation, id_col, mag_cols):
+                     k, max_obj_deviation, id_col, mag_cols, debug_mode=False):
 
     '''Executes the high PM star data pipeline.
 
@@ -296,10 +332,16 @@ def execute_pipeline(catalog, query_string,
                 radius_arcsec=max_neighbor_dist,
                 suffixes=['_1', '_2']
     )
+    if debug_mode: 
+        print(f"Length of self crossmatch: {len(xmatch.compute())}")
+        
     neighbors_filtered = xmatch.map_partitions(n_neighbors_filter, min_neighbors, id_col)
+
+    if debug_mode: print(f"Length after neighbors filter: {len(neighbors_filtered.compute())}")
     
     # Add column for kth minimum distance and postfiltering parameters
-    kth_star = neighbors_filtered.map_partitions(apply_kth_star, k, id_col, mag_cols, max_obj_deviation)
+    kth_star = neighbors_filtered.map_partitions(apply_kth_star, k, id_col, mag_cols, max_obj_deviation, debug_mode)
+    if debug_mode: print(f"Length after kth star filter: {len(kth_star.compute())}")
     kth_star_filtered = kth_star.query(f'kth_min_deviation < {max_obj_deviation}')
     
     return kth_star_filtered
