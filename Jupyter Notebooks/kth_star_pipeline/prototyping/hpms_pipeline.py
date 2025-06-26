@@ -267,11 +267,12 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
     '''
     original_index = df.index
     df.reset_index(inplace=True, drop=True)
-    # print("ALL COLUMNS:",list(df.columns))
+
     if df.empty:
         df['kth_min_deviation'] = pd.Series(dtype=float)
         df['max_obj_distance'] = pd.Series(dtype=float)
         df['max_mag_diff'] = pd.Series(dtype=float)
+        df['aligned_neighbors'] = pd.Series(dtype=float)
     else:
         hpms_cols = (
             df.groupby(id_col)
@@ -280,24 +281,15 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
               .reset_index(drop=True, level=0)
         )
         df = df.join(hpms_cols)
-        # assert len(set(df.index)) == len(df), f"{df.index = }"
-
-    
-    hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
+        print(f"HPMS_COLS_COLS: {list(hpms_cols.columns)}")    
     
     df.index = original_index
-    # assert len(set(df.index)) == len(df), f"{df.index = }"
-
-    # # print("ORIGINAL DF:")
-    # # display(df)
     df = df.groupby(original_index).apply(reduce_to_lowest_deviation)
-    # # print("DF AFTER REDUCE:")
-    # display(df_test)
-    # # print("DF AFTER RESET_IDX:")
     df = df.reset_index(level=0, drop=True)
-    # # display(df_test)
-    
 
+    hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
+    if debug_mode: hpms_col_names.append('aligned_neighbors') 
+    
     cols_to_keep = [id_col] + [col for col in df.columns if col.endswith('_2')] + hpms_col_names
     return df[cols_to_keep]
 
