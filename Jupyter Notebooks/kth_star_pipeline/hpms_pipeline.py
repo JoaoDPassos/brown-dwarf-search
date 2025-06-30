@@ -183,6 +183,7 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_m
     mag_cols_1 = [f'{col}_1' for col in mag_cols]
     origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], group.iloc[0][mag_cols_1])
     mag_cols_2 = [f'{col}_2' for col in mag_cols]
+    # Try itertuples and with named tuples (basically a dictionary) should speed up this section
     neighbors = [Star(row['RA_2'], row['DEC_2'], row[mag_cols_2]) for index, row in group.iterrows()]
 
     proj_coords = get_proj_coords(origin_star, neighbors)
