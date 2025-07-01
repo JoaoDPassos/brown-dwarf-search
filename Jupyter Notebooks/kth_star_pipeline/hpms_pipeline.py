@@ -5,6 +5,7 @@ from astropy import units as u
 from itertools import combinations
 from dataclasses import dataclass
 from IPython.display import display
+from collections import namedtuple
 
 
 @dataclass (eq=True)
@@ -108,11 +109,11 @@ def find_max_mag_diff(neighbors, mag_cols):
     Returns: maximum mag difference as np.float64(?)
     '''
     
-    mag_dfs = [neighbor.mags for neighbor in neighbors]
+    mag_lists = [neighbor.mags for neighbor in neighbors]
     max_diff = np.nan
 
-    for mag_col in mag_cols:
-        mags = [df[mag_col] for df in mag_dfs]
+    for i in range(len(mag_cols)):
+        mags = [mag_list[i] for mag_list in mag_lists]
 
         for mag_1, mag_2 in combinations(mags, 2):
             if (mag_1 == -99.0) or (mag_2 == -99.0): continue 
@@ -184,7 +185,7 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_m
     origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], group.iloc[0][mag_cols_1])
     mag_cols_2 = [f'{col}_2' for col in mag_cols]
     # Try itertuples and with named tuples (basically a dictionary) should speed up this section
-    neighbors = [Star(row['RA_2'], row['DEC_2'], row[mag_cols_2]) for index, row in group.iterrows()]
+    neighbors = [Star(row.RA_2, row.DEC_2, [getattr(row, col) for col in mag_cols_2]) for row in group.itertuples()]
 
     proj_coords = get_proj_coords(origin_star, neighbors)
 
