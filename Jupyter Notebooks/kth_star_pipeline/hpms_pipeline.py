@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import random
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from itertools import combinations
@@ -238,20 +239,6 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_m
          
     return group[return_cols]
 
-def reduce_to_lowest_deviation(group):
-    
-    '''.apply() compatible function which takes a group with the same healpix index (and id_col_1) and returns the 
-    group with only one row: the one with the lowest kth_min_deviation.
-
-    Args:
-        - group: Group to be reduced into one row.
-
-    Returns: Single row from group with lowest kth_min_deviation.
-    '''
-    min_idx = np.argmin(group['kth_min_deviation'].to_numpy()[1:]) #Skip 0 index because is always NaN
-    min_idx += 1
-    return group.iloc[[min_idx]]
-
 def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False):
 
     '''map_partitions() compatible function which runs the kth star algorithm on a catalog already crossmatched
@@ -359,3 +346,22 @@ def execute_pipeline(catalog, query_string,
     kth_star_filtered = kth_star.query(f'kth_min_deviation < {max_obj_deviation}')
     
     return kth_star_filtered
+
+
+def sample_mag_diffs(catalog, band_col_name, arr_size):
+    n_partitions=catalog.npartitions
+    diffs = []
+
+    for _ in range(arr_size):
+        id_1 = random.randint(0, n_partitions - 1)
+        obj_1 = catalog.sample(id_1, n=1)
+            
+        id_2 = random.randint(0, n_partitions - 1)
+        obj_2 = catalog.sample(id_2, n=1)
+        
+        if (obj_1[band_col_name].item() == -99.0) or (obj_2[band_col_name].item() == -99.0):
+            diffs.append(-1)
+        else:
+            diffs.append(abs(obj_1[band_col_name].item() - obj_2[band_col_name].item()))
+    
+    return np.array(diffs)
