@@ -180,12 +180,11 @@ def get_proj_coords(origin, neighbors):
 
 
 def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_mode=False):
-    
-    mag_cols_1 = [f'{col}_1' for col in mag_cols]
-    origin_star = Star(group['RA_1'].iloc[0], group['DEC_1'].iloc[0], group.iloc[0][mag_cols_1])
     mag_cols_2 = [f'{col}_2' for col in mag_cols]
-    # Try itertuples and with named tuples (basically a dictionary) should speed up this section
     neighbors = [Star(row.RA_2, row.DEC_2, [getattr(row, col) for col in mag_cols_2]) for row in group.itertuples()]
+    
+    # Group order is sorted by distances; hence, the origin star is always index 0 (col_1[0] = col_2[0])
+    origin_star = neighbors[0]
 
     proj_coords = get_proj_coords(origin_star, neighbors)
 
@@ -283,7 +282,7 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
         df = df.join(hpms_cols)
     
     df.index = original_index
-    df = df.groupby(original_index).apply(reduce_to_lowest_deviation)
+    df = df.groupby(original_index).min("kth_min_deviation")
     df = df.reset_index(level=0, drop=True)
 
     hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
