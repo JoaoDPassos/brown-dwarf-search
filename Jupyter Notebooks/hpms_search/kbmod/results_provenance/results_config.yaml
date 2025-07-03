@@ -1,0 +1,53 @@
+clip_negative: false
+cluster_eps: 20.0
+cluster_type: all
+cluster_v_scale: 1.0
+cnn_coadd_type: mean
+cnn_filter: false
+cnn_model: null
+cnn_model_type: resnet18
+cnn_stamp_radius: 49
+coadds: []
+compute_ra_dec: true
+cpu_only: true
+debug: false
+do_clustering: true
+drop_columns: []
+encode_num_bytes: -1
+generate_psi_phi: true
+generator_config:
+  max_vx: 2.0
+  max_vy: 2.0
+  min_vx: -2.0
+  min_vy: -2.0
+  name: VelocityGridSearch
+  vx_steps: 11
+  vy_steps: 11
+gpu_filter: false
+lh_level: 10.0
+max_results: 100000
+near_dup_thresh: 10
+nightly_coadds: false
+num_obs: 15
+psf_val: 1.4
+result_filename: ./results.ecsv
+results_per_pixel: 8
+save_all_stamps: false
+save_config: true
+separate_col_files:
+- all_stamps
+sigmaG_filter: true
+sigmaG_lims:
+- 25
+- 75
+stamp_radius: 10
+stamp_type: sum
+track_filtered: false
+x_pixel_bounds:
+- 4703
+- 4723
+x_pixel_buffer: null
+y_pixel_bounds:
+- 444
+- 464
+y_pixel_buffer: null
