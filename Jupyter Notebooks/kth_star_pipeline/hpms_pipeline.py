@@ -11,14 +11,15 @@ from collections import namedtuple
 
 @dataclass (eq=True)
 class Star:
-    def __init__(self, ra, dec, mags):
+    def __init__(self, ra, dec, mags, mag_errs):
         self.ra = ra
         self.dec = dec
         self.mags = mags
+        self.mag_errs = mag_errs
         self.deviation = np.inf
 
     def __repr__(self):
-        return f'RA: {self.ra}, DEC: {self.dec}, mags: {self.mags}, deviation: {self.deviation}'
+        return f'RA: {self.ra}, DEC: {self.dec}, mags: {self.mags}, mag_errs: {self.mag_errs}, deviation: {self.deviation}'
 
     def __str__(self):
         return repr(self)
@@ -110,19 +111,23 @@ def find_max_mag_diff(neighbors, mag_cols):
     Returns: maximum mag difference as np.float64(?)
     '''
     
-    mag_lists = [neighbor.mags for neighbor in neighbors]
+    all_mag_lists = [neighbor.mags for neighbor in neighbors]
     max_diff = np.nan
 
     for i in range(len(mag_cols)):
-        mags = [mag_list[i] for mag_list in mag_lists]
+        mags = [mag_list[i] for mag_list in all_mag_lists]
 
-        for mag_1, mag_2 in combinations(mags, 2):
+        for idx_1, idx_2 in combinations(range(len(mags)), 2):
+            mag_1, mag_2 = mags[idx_1], mags[idx_2]
             if (mag_1 == -99.0) or (mag_2 == -99.0): continue 
+
+            mag_1_err, mag_2_err = neighbors[idx_1].mag_errs[i], neighbors[idx_2].mag_errs[i]
+            err_norm = np.linalg.norm(np.array([mag_1_err, mag_2_err]))
                 
-            curr_diff = abs(mag_1 - mag_2)
+            curr_diff = abs(mag_1 - mag_2) / max(err_norm, 0.01)
             if ((curr_diff > max_diff) or (np.isnan(max_diff))):
                 max_diff = curr_diff
-    
+                
     return max_diff
 
 def get_aligned_neighbors(sorted_neighbors, k):
@@ -181,8 +186,14 @@ def get_proj_coords(origin, neighbors):
 
 
 def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_mode=False):
-    mag_cols_2 = [f'{col}_2' for col in mag_cols]
-    neighbors = [Star(row.RA_2, row.DEC_2, [getattr(row, col) for col in mag_cols_2]) for row in group.itertuples()]
+    mag_cols_2 = [f"{col}_2" for col in mag_cols]
+    mag_col_errs = [f"{col.replace('WAVG_MAG_PSF', 'WAVG_MAGERR_PSF')}_2" for col in mag_cols]
+    neighbors = [
+        Star(row.RA_2, row.DEC_2, 
+             [getattr(row, col) for col in mag_cols_2], 
+             [getattr(row, col) for col in mag_col_errs])
+        for row in group.itertuples()
+    ]
     
     # Group order is sorted by distances; hence, the origin star is always index 0 (col_1[0] = col_2[0])
     origin_star = neighbors[0]
@@ -234,6 +245,7 @@ def kth_star_min_distance(group, k, mag_cols, max_obj_deviation, id_col, debug_m
     group['max_mag_diff'] = max_mag_diffs
     group['aligned_neighbors'] = debug_col
 
+    
     return_cols = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
     if debug_mode: return_cols.append('aligned_neighbors')
          
@@ -252,7 +264,8 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
     with other stars.
     '''
     original_index = df.index
-    df.reset_index(inplace=True, drop=True)
+    original_index_name = df.index.name
+    df.reset_index(inplace=True)
 
     if df.empty:
         df['kth_min_deviation'] = pd.Series(dtype=float)
@@ -267,10 +280,10 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
               .reset_index(drop=True, level=0)
         )
         df = df.join(hpms_cols)
-    
-    df.index = original_index
-    df = df.groupby(original_index).min("kth_min_deviation")
-    df = df.reset_index(level=0, drop=True)
+
+    df = df.loc[df.groupby(id_col)['kth_min_deviation'].idxmin()]
+    df.index = df[original_index_name]
+    df = df.drop(original_index_name,axis=1)
 
     hpms_col_names = ['kth_min_deviation', 'max_obj_distance', 'max_mag_diff']
     if debug_mode: hpms_col_names.append('aligned_neighbors') 
@@ -299,7 +312,6 @@ def num_missed_detections(df, passband_cols, missed_val):
         
     df['n_missed_detections']=n_missed_detections
     return df['n_missed_detections']
-
     
 
 def execute_pipeline(catalog, query_string,
