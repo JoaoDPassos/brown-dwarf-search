@@ -122,7 +122,7 @@ def find_max_mag_diff(neighbors, mag_cols):
             if (mag_1 == -99.0) or (mag_2 == -99.0): continue 
 
             mag_1_err, mag_2_err = neighbors[idx_1].mag_errs[i], neighbors[idx_2].mag_errs[i]
-            err_norm = np.linalg.norm(np.array([mag_1_err, mag_2_err]))
+            err_norm = np.linalg.hypot(mag_1_err, mag_2_err)
                 
             curr_diff = abs(mag_1 - mag_2) / max(err_norm, 0.01)
             if ((curr_diff > max_diff) or (np.isnan(max_diff))):
