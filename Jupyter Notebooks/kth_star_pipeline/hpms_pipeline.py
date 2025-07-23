@@ -7,6 +7,7 @@ from itertools import combinations
 from dataclasses import dataclass
 from IPython.display import display
 from collections import namedtuple
+import networkx as nx
 
 
 @dataclass (eq=True)
@@ -23,7 +24,6 @@ class Star:
 
     def __str__(self):
         return repr(self)
-
 
 def n_neighbors_filter(df, min_neighbors, id_col):
     
@@ -122,7 +122,7 @@ def find_max_mag_diff(neighbors, mag_cols):
             if (mag_1 == -99.0) or (mag_2 == -99.0): continue 
 
             mag_1_err, mag_2_err = neighbors[idx_1].mag_errs[i], neighbors[idx_2].mag_errs[i]
-            err_norm = np.linalg.hypot(mag_1_err, mag_2_err)
+            err_norm = np.hypot(mag_1_err, mag_2_err)
                 
             curr_diff = abs(mag_1 - mag_2) / max(err_norm, 0.01)
             if ((curr_diff > max_diff) or (np.isnan(max_diff))):
@@ -280,8 +280,10 @@ def apply_kth_star(df, k, id_col, mag_cols, max_obj_deviation, debug_mode=False)
               .reset_index(drop=True, level=0)
         )
         df = df.join(hpms_cols)
+        # print("df after join K*:")
+        # display(df)
 
-    df = df.loc[df.groupby(id_col)['kth_min_deviation'].idxmin()]
+    df = merge_groups_and_reduce(df, id_col, max_obj_deviation)
     df.index = df[original_index_name]
     df = df.drop(original_index_name,axis=1)
 
@@ -377,3 +379,39 @@ def sample_mag_diffs(catalog, band_col_name, arr_size):
             diffs.append(abs(obj_1[band_col_name].item() - obj_2[band_col_name].item()))
     
     return np.array(diffs)
+
+def merge_groups_and_reduce(df, id_1, max_obj_deviation):
+    # Step 1: Build a graph where stars are nodes, connected if they are in the same group
+    G = nx.Graph()
+    id_2 = id_1[:-1] + '2'
+
+    for group_id, group_df in df.groupby(id_1):
+        #TODO: query here for kth_min_deviation which we want before adding them to the group
+        filtered_group = group_df[
+            (group_df['kth_min_deviation'].notna()) &
+            (group_df['kth_min_deviation'] < max_obj_deviation)
+        ]
+        stars_2 = filtered_group[id_2].unique()
+        star_1 = filtered_group[id_1].unique()
+        # Connect all pairs of stars in this group
+        for i in range(len(stars_2)):
+            G.add_edge(star_1[0], stars_2[i])
+            for j in range(i + 1, len(stars_2)):
+                G.add_edge(stars_2[i], stars_2[j])
+                
+    # Step 2: Find connected components (merged groups)
+    connected_components = list(nx.connected_components(G))
+
+    # Step 3: Map each star_id to a merged_group_id (e.g., by index)
+    star_to_component = {}
+    for i, component in enumerate(connected_components):
+        for star_id in component:
+            star_to_component[star_id] = i
+
+    # Step 4: Assign merged group id to original df
+    df['merged_group_id'] = df[id_2].map(star_to_component)
+
+    # Step 5: Reduce each merged group to the star with the smallest kth_min_deviation
+    reduced_df = df.loc[df.groupby('merged_group_id')['kth_min_deviation'].idxmin()]
+
+    return reduced_df
