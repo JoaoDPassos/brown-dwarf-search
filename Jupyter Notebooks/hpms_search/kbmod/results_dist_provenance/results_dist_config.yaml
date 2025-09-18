@@ -7,7 +7,9 @@ cnn_filter: false
 cnn_model: null
 cnn_model_type: resnet18
 cnn_stamp_radius: 49
-coadds: []
+coadds:
+- mean
+- median
 compute_ra_dec: true
 cpu_only: true
 debug: false
@@ -16,13 +18,32 @@ drop_columns: []
 encode_num_bytes: -1
 generate_psi_phi: true
 generator_config:
-  max_vx: 2.0
-  max_vy: 2.0
-  min_vx: -2.0
-  min_vy: -2.0
+  max_vx: 0.012342847429569651
+  max_vy: !!python/object/apply:numpy._core.multiarray.scalar
+  - &id001 !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    ZmaGL+qikz8=
+  min_vx: 0.008228564953046434
+  min_vy: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    NDOzlI0uij8=
   name: VelocityGridSearch
-  vx_steps: 11
-  vy_steps: 11
+  vx_steps: 100
+  vy_steps: 100
 gpu_filter: false
 lh_level: 10.0
 max_results: 100000
@@ -30,9 +51,9 @@ near_dup_thresh: 0
 nightly_coadds: false
 num_obs: 15
 psf_val: 1.4
-result_filename: ./results.ecsv
+result_filename: ./results_dist.ecsv
 results_per_pixel: 8
-save_all_stamps: false
+save_all_stamps: true
 save_config: true
 separate_col_files:
 - all_stamps
@@ -44,10 +65,10 @@ stamp_radius: 10
 stamp_type: sum
 track_filtered: false
 x_pixel_bounds:
-- 4703
-- 4723
+- 4663
+- 4763
 x_pixel_buffer: null
 y_pixel_bounds:
-- 444
-- 464
+- 404
+- 504
 y_pixel_buffer: null
