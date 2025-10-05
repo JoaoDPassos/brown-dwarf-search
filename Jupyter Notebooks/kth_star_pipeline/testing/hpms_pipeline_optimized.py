@@ -416,10 +416,10 @@ def execute_pipeline(catalog, query_string,
     kth_star = neighbors_filtered.map_partitions(apply_kth_star, k, id_col, mag_cols, max_obj_deviation, debug_mode)
     del neighbors_filtered
     if debug_mode: print(f"Length after kth star filter: {len(kth_star.compute())}")
-    kth_star_filtered = kth_star.query(f'kth_min_deviation < {max_obj_deviation}')
-    del kth_star
+    # kth_star_filtered = kth_star.query(f'kth_min_deviation < {max_obj_deviation}')
+    # del kth_star
     
-    return kth_star_filtered
+    return kth_star
 
 
 def sample_mag_diffs(catalog, band_col_name, arr_size):
