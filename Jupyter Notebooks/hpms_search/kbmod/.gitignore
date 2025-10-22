@@ -1,2 +1,14 @@
 kbmod_fits_examples
 results_all_stamps.fits
+run_results
+i_band_20_sig
+i_band_50_sig
+i_band_5_sig
+i_band_5_sig/
+*.fits
+*.fits
+*.fits
+kth_star_pipeline/testing/memray-results/
+kth_star_pipeline/testing/test_run_cat/
+__pycache__/
+**/.ipynb_checkpoints/
